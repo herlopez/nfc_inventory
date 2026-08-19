@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <title>Editar inventario</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✏️</text></svg>">
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <h1 id="titulo-pagina">Editar inventario</h1>
+      <span class="sesion">
+        <a class="btn" href="/">← Inventario</a>
+      </span>
+    </header>
+
+    <article class="card">
+      <div class="card-body">
+        <h2 class="nombre" style="font-size:20px" id="titulo-form">Nuevo producto</h2>
+        <p class="sub" id="sub-form">Los campos vacíos no se muestran en la ficha.</p>
+
+        <form id="form">
+          <div class="field" id="campo-id">
+            <label for="id">ID <span style="color:var(--bad)">*</span> — es el que va en el tag/QR</label>
+            <input id="id" name="id" placeholder="P-004" autocapitalize="characters"
+                   spellcheck="false" pattern="[A-Za-z0-9._\-]{1,64}" required>
+          </div>
+
+          <div class="field">
+            <label for="nombre">Nombre <span style="color:var(--bad)">*</span></label>
+            <input id="nombre" name="nombre" maxlength="200" required>
+          </div>
+
+          <div class="dos-cols">
+            <div class="field">
+              <label for="sku">SKU</label>
+              <input id="sku" name="sku" maxlength="200" spellcheck="false">
+            </div>
+            <div class="field">
+              <label for="categoria">Categoría</label>
+              <input id="categoria" name="categoria" maxlength="200" list="categorias">
+              <datalist id="categorias"></datalist>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="descripcion">Descripción</label>
+            <textarea id="descripcion" name="descripcion" maxlength="2000"></textarea>
+          </div>
+
+          <div class="dos-cols">
+            <div class="field">
+              <label for="ubicacion">Ubicación</label>
+              <input id="ubicacion" name="ubicacion" maxlength="200" list="ubicaciones">
+              <datalist id="ubicaciones"></datalist>
+            </div>
+            <div class="field">
+              <label for="estado">Estado</label>
+              <select id="estado" name="estado">
+                <option value="">—</option>
+                <option>disponible</option>
+                <option>prestado</option>
+                <option>reservado</option>
+                <option>mantenimiento</option>
+                <option>agotado</option>
+                <option>dañado</option>
+                <option>perdido</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="dos-cols">
+            <div class="field">
+              <label for="stock">Stock</label>
+              <input id="stock" name="stock" type="number" min="0" step="1" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label for="precio">Precio</label>
+              <input id="precio" name="precio" type="number" min="0" step="0.01" inputmode="decimal">
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="imagen">Imagen (URL)</label>
+            <input id="imagen" name="imagen" type="url" placeholder="https://…/foto.jpg" maxlength="500">
+          </div>
+
+          <div class="field">
+            <label for="notas">Notas</label>
+            <textarea id="notas" name="notas" maxlength="2000"></textarea>
+          </div>
+
+          <div class="field">
+            <label>Campos extra (serie, garantía, talla…)</label>
+            <div id="extras"></div>
+            <button type="button" class="btn" id="add-extra">+ Añadir campo</button>
+          </div>
+
+          <div class="acciones">
+            <button class="btn primary" id="guardar">Guardar</button>
+            <a class="btn" id="ver" href="#" hidden>Ver ficha</a>
+            <a class="btn" id="qr" href="#" hidden>QR / NFC</a>
+            <button type="button" class="btn danger" id="borrar" hidden>Borrar</button>
+            <a class="btn" href="/admin.html" id="nuevo" hidden>+ Nuevo</a>
+          </div>
+
+          <p class="aviso" id="aviso" hidden></p>
+        </form>
+      </div>
+    </article>
+
+    <article class="card" style="margin-top:16px">
+      <div class="card-body" style="border-bottom:1px solid var(--line);padding-bottom:14px">
+        <h2 class="nombre" style="font-size:18px;margin:0">Productos</h2>
+        <p class="sub" style="margin:4px 0 0" id="conteo">…</p>
+      </div>
+      <ul class="lista" id="lista"></ul>
+    </article>
+
+    <p class="foot">El ID no se puede cambiar después de crearlo: los tags ya grabados apuntan a él.</p>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const params = new URLSearchParams(location.search);
+    const editandoId = params.get('id');
+    let productos = [];
+
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function aviso(msg, tipo = 'ok') {
+      const el = $('aviso');
+      el.textContent = msg;
+      el.className = 'aviso ' + tipo;
+      el.hidden = false;
+      if (tipo === 'ok') setTimeout(() => { el.hidden = true; }, 4000);
+    }
+
+    async function api(url, opciones = {}) {
+      const res = await fetch(url, {
+        ...opciones,
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...opciones.headers },
+      });
+      if (res.status === 401) {
+        location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search));
+        throw new Error('sesión');
+      }
+      const datos = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(datos.error || `Error ${res.status}`);
+      return datos;
+    }
+
+    /* ---------- campos extra ---------- */
+
+    function filaExtra(clave = '', valor = '') {
+      const div = document.createElement('div');
+      div.className = 'extra-fila';
+      div.innerHTML = `
+        <input placeholder="Campo" value="${esc(clave)}" maxlength="60">
+        <input placeholder="Valor" value="${esc(valor)}" maxlength="200">
+        <button type="button" title="Quitar">×</button>`;
+      div.querySelector('button').addEventListener('click', () => div.remove());
+      return div;
+    }
+
+    function leerExtras() {
+      const extra = {};
+      for (const fila of $('extras').children) {
+        const [k, v] = fila.querySelectorAll('input');
+        if (k.value.trim() && v.value.trim()) extra[k.value.trim()] = v.value.trim();
+      }
+      return extra;
+    }
+
+    $('add-extra').addEventListener('click', () => $('extras').append(filaExtra()));
+
+    /* ---------- formulario ---------- */
+
+    function llenarFormulario(p) {
+      for (const campo of ['id', 'nombre', 'sku', 'categoria', 'descripcion',
+                           'ubicacion', 'estado', 'stock', 'precio', 'imagen', 'notas']) {
+        $(campo).value = p[campo] ?? '';
+      }
+      $('extras').innerHTML = '';
+      for (const [k, v] of Object.entries(p.extra || {})) $('extras').append(filaExtra(k, v));
+    }
+
+    function modoEdicion(p) {
+      document.title = `Editar ${p.id}`;
+      $('titulo-form').textContent = `Editar ${p.id}`;
+      $('sub-form').textContent = p.nombre;
+      $('id').readOnly = true;
+      $('id').style.opacity = .6;
+      llenarFormulario(p);
+
+      $('ver').href = '/?id=' + encodeURIComponent(p.id);
+      $('qr').href = '/generar.html';
+      for (const b of ['ver', 'qr', 'borrar', 'nuevo']) $(b).hidden = false;
+    }
+
+    function modoAlta() {
+      $('titulo-form').textContent = 'Nuevo producto';
+      $('id').readOnly = false;
+      $('id').style.opacity = 1;
+      $('extras').innerHTML = '';
+      for (const b of ['ver', 'qr', 'borrar', 'nuevo']) $(b).hidden = true;
+    }
+
+    $('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const boton = $('guardar');
+      boton.disabled = true;
+      boton.textContent = 'Guardando…';
+
+      const cuerpo = {
+        id: $('id').value.trim(),
+        nombre: $('nombre').value,
+        sku: $('sku').value,
+        categoria: $('categoria').value,
+        descripcion: $('descripcion').value,
+        ubicacion: $('ubicacion').value,
+        estado: $('estado').value,
+        stock: $('stock').value,
+        precio: $('precio').value,
+        imagen: $('imagen').value,
+        notas: $('notas').value,
+        extra: leerExtras(),
+      };
+
+      try {
+        if (editandoId) {
+          await api('/api/productos/' + encodeURIComponent(editandoId),
+            { method: 'PUT', body: JSON.stringify(cuerpo) });
+          aviso('Guardado.');
+          await cargarLista();
+        } else {
+          const { producto } = await api('/api/productos',
+            { method: 'POST', body: JSON.stringify(cuerpo) });
+          location.href = '/admin.html?id=' + encodeURIComponent(producto.id) + '&creado=1';
+          return;
+        }
+      } catch (err) {
+        aviso(err.message, 'error');
+      }
+
+      boton.disabled = false;
+      boton.textContent = 'Guardar';
+    });
+
+    $('borrar').addEventListener('click', async () => {
+      if (!confirm(`¿Borrar ${editandoId}? Los tags que apunten a este ID dejarán de funcionar.`)) return;
+      try {
+        await api('/api/productos/' + encodeURIComponent(editandoId), { method: 'DELETE' });
+        location.href = '/admin.html';
+      } catch (err) {
+        aviso(err.message, 'error');
+      }
+    });
+
+    /* ---------- listado ---------- */
+
+    async function cargarLista() {
+      const datos = await api('/api/productos');
+      productos = datos.productos || [];
+
+      $('conteo').textContent = `${productos.length} producto${productos.length === 1 ? '' : 's'}`;
+      $('lista').innerHTML = productos.map(p => `
+        <li class="fila">
+          <span class="info">
+            <strong>${esc(p.nombre)}</strong>
+            <span class="id">${esc(p.id)}${p.ubicacion ? ' · ' + esc(p.ubicacion) : ''}</span>
+          </span>
+          <span class="acciones-fila">
+            <a class="mini" href="/?id=${encodeURIComponent(p.id)}">Ver</a>
+            <a class="mini" href="/admin.html?id=${encodeURIComponent(p.id)}">Editar</a>
+          </span>
+        </li>`).join('') || '<li class="fila"><span class="info">Todavía no hay productos.</span></li>';
+
+      const unicos = (campo) => [...new Set(productos.map(p => p[campo]).filter(Boolean))];
+      $('categorias').innerHTML = unicos('categoria').map(c => `<option value="${esc(c)}">`).join('');
+      $('ubicaciones').innerHTML = unicos('ubicacion').map(u => `<option value="${esc(u)}">`).join('');
+    }
+
+    (async () => {
+      try {
+        await cargarLista();
+        if (editandoId) {
+          const { producto } = await api('/api/productos/' + encodeURIComponent(editandoId));
+          modoEdicion(producto);
+          if (params.has('creado')) aviso('Producto creado. Ya puedes grabar su tag.');
+        } else {
+          modoAlta();
+        }
+      } catch (err) {
+        if (err.message !== 'sesión') aviso(err.message, 'error');
+      }
+    })();
+  </script>
+</body>
+</html>

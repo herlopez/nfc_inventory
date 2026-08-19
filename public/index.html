@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <title>Inventario NFC</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <h1 id="titulo">Inventario NFC</h1>
+      <span class="sesion">
+        <span id="quien" class="id"></span>
+        <a class="btn" href="/generar.html">QR / NFC</a>
+        <button class="btn" id="salir" hidden>Salir</button>
+      </span>
+    </header>
+
+    <main id="app">
+      <div class="card"><div class="msg"><p>Cargando…</p></div></div>
+    </main>
+
+    <p class="foot" id="foot"></p>
+  </div>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>

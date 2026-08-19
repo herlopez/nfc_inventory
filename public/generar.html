@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Generar QR / NFC</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <h1>Generar QR / NFC</h1>
+      <a class="btn" href="/">← Inventario</a>
+    </header>
+
+    <article class="card">
+      <div class="card-body">
+        <div class="field">
+          <label for="base">URL base de la app</label>
+          <input id="base" type="url" placeholder="https://usuario.github.io/nfc_inventory/">
+        </div>
+
+        <div class="field">
+          <label for="prod">Producto</label>
+          <select id="prod"></select>
+        </div>
+
+        <div class="field">
+          <label for="manual">…o escribe un ID manualmente</label>
+          <input id="manual" type="text" placeholder="P-004">
+        </div>
+
+        <p class="url-out" id="url">—</p>
+
+        <div class="acciones">
+          <button class="btn primary" id="btn-nfc">Escribir en tag NFC</button>
+          <button class="btn" id="btn-copiar">Copiar link</button>
+          <a class="btn" id="btn-abrir" href="#" target="_blank" rel="noopener">Abrir</a>
+          <a class="btn" id="btn-png" download="qr.png">Descargar QR</a>
+        </div>
+
+        <p class="hint" id="estado"></p>
+
+        <div class="qr-box"><canvas id="qr"></canvas><img id="qr-img" alt="" hidden></div>
+      </div>
+    </article>
+
+    <p class="foot">El QR/NFC solo guarda la URL. Los datos del producto viven en <code class="id-chip">data/productos.json</code>.</p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    const estado = msg => { $('estado').textContent = msg; };
+
+    // URL base por defecto: la raíz de este servidor.
+    $('base').value = location.origin + '/';
+
+    async function cargarProductos() {
+      try {
+        const res = await fetch('/api/productos', {
+          cache: 'no-cache', headers: { Accept: 'application/json' },
+        });
+        if (res.status === 401) { location.replace('/login?next=/generar.html'); return; }
+        const data = await res.json();
+        const sel = $('prod');
+        sel.innerHTML = '<option value="">— elegir —</option>' +
+          (data.productos || []).map(p =>
+            `<option value="${p.id}">${p.nombre} (${p.id})</option>`).join('');
+      } catch {
+        estado('No se pudo leer el inventario; usa el campo manual.');
+      }
+    }
+
+    function urlActual() {
+      const id = ($('manual').value || $('prod').value || '').trim();
+      if (!id) return '';
+      const base = $('base').value.trim().replace(/\/?$/, '/');
+      return `${base}?id=${encodeURIComponent(id)}`;
+    }
+
+    async function pintar() {
+      const url = urlActual();
+      $('url').textContent = url || '—';
+      $('btn-abrir').href = url || '#';
+
+      const canvas = $('qr'), img = $('qr-img');
+      if (!url) { canvas.hidden = true; img.hidden = true; return; }
+
+      if (window.QRCode) {
+        img.hidden = true;
+        canvas.hidden = false;
+        await QRCode.toCanvas(canvas, url, { width: 260, margin: 1 });
+        $('btn-png').href = canvas.toDataURL('image/png');
+      } else {
+        // Sin la librería (offline / CDN bloqueado): imagen de respaldo.
+        canvas.hidden = true;
+        img.hidden = false;
+        img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=' + encodeURIComponent(url);
+        $('btn-png').href = img.src;
+      }
+    }
+
+    $('btn-copiar').addEventListener('click', async () => {
+      const url = urlActual();
+      if (!url) return estado('Elige un producto primero.');
+      try { await navigator.clipboard.writeText(url); estado('Link copiado.'); }
+      catch { prompt('Copia el link:', url); }
+    });
+
+    $('btn-nfc').addEventListener('click', async () => {
+      const url = urlActual();
+      if (!url) return estado('Elige un producto primero.');
+      if (!('NDEFReader' in window)) {
+        return estado('Este navegador no soporta Web NFC. Usa Chrome en Android, o graba el tag con NFC Tools.');
+      }
+      try {
+        estado('Acerca el tag NFC al teléfono…');
+        await new NDEFReader().write({ records: [{ recordType: 'url', data: url }] });
+        estado('✅ Tag grabado con ' + url);
+      } catch (e) {
+        estado('Error al grabar: ' + e.message);
+      }
+    });
+
+    ['input', 'change'].forEach(ev => {
+      $('base').addEventListener(ev, pintar);
+      $('prod').addEventListener(ev, pintar);
+      $('manual').addEventListener(ev, pintar);
+    });
+
+    cargarProductos().then(pintar);
+  </script>
+</body>
+</html>

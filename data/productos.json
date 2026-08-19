@@ -1,0 +1,63 @@
+{
+  "config": {
+    "titulo": "Inventario NFC",
+    "moneda": "USD",
+    "contacto": "herlopezm@gmail.com"
+  },
+  "productos": [
+    {
+      "id": "P-001",
+      "nombre": "Taladro percutor 20V",
+      "sku": "TAL-20V-BR",
+      "categoria": "Herramientas eléctricas",
+      "descripcion": "Taladro inalámbrico 20V con batería de litio, maletín y set de 12 brocas.",
+      "imagen": "",
+      "ubicacion": "Bodega A · Estante 3",
+      "stock": 4,
+      "precio": 129.9,
+      "estado": "disponible",
+      "actualizado": "2026-08-10",
+      "notas": "Revisar carga de baterías cada 30 días.",
+      "extra": {
+        "Serie": "BR-20V-8821",
+        "Garantía": "12 meses"
+      }
+    },
+    {
+      "id": "P-002",
+      "nombre": "Casco de seguridad clase E",
+      "sku": "EPP-CAS-E",
+      "categoria": "EPP",
+      "descripcion": "Casco dieléctrico con ajuste ratchet, certificado ANSI Z89.1.",
+      "imagen": "",
+      "ubicacion": "Bodega B · Caja 12",
+      "stock": 25,
+      "precio": 18.5,
+      "estado": "disponible",
+      "actualizado": "2026-08-12",
+      "notas": "",
+      "extra": {
+        "Talla": "Universal",
+        "Color": "Blanco"
+      }
+    },
+    {
+      "id": "P-003",
+      "nombre": "Compresor de aire 50L",
+      "sku": "COM-50L",
+      "categoria": "Maquinaria",
+      "descripcion": "Compresor de pistón 50 litros, 2HP, 8 bar. Incluye manguera de 10 m.",
+      "imagen": "",
+      "ubicacion": "Taller · Piso 1",
+      "stock": 0,
+      "precio": 449.0,
+      "estado": "prestado",
+      "actualizado": "2026-08-14",
+      "notas": "Prestado a obra Los Almendros hasta el 30/08.",
+      "extra": {
+        "Serie": "CP-50-2231",
+        "Mantenimiento": "2026-09-01"
+      }
+    }
+  ]
+}
