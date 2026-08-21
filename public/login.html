@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <title>Acceso · Inventario NFC</title>
+  <link rel="stylesheet" href="/assets/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>">
+</head>
+<body>
+  <div class="wrap" style="max-width:400px">
+    <header class="topbar" style="justify-content:center">
+      <h1>Inventario NFC</h1>
+    </header>
+
+    <article class="card">
+      <div class="card-body">
+        <div class="hero-fallback" style="aspect-ratio:auto;padding:18px 0;font-size:38px">🔒</div>
+        <h2 class="nombre" style="font-size:20px;margin-top:16px">Acceso restringido</h2>
+        <p class="sub" id="motivo">Escribe tu usuario y contraseña para ver el inventario.</p>
+
+        <form id="form" autocomplete="on">
+          <div class="field">
+            <label for="usuario">Usuario o correo</label>
+            <input id="usuario" name="usuario" type="text" autocomplete="username"
+                   autocapitalize="none" spellcheck="false" required autofocus>
+          </div>
+          <div class="field">
+            <label for="password">Contraseña</label>
+            <input id="password" name="password" type="password"
+                   autocomplete="current-password" required>
+          </div>
+          <button class="btn primary" id="enviar" style="width:100%;justify-content:center">Entrar</button>
+        </form>
+
+        <p class="notas" id="error" hidden style="border-color:var(--bad);background:rgba(220,38,38,.08)"></p>
+      </div>
+    </article>
+
+    <p class="foot">Los datos del inventario solo se envían tras iniciar sesión.</p>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const next = params.get('next') || '/';
+
+    if (params.has('next')) {
+      document.getElementById('motivo').textContent =
+        'Necesitas iniciar sesión para ver esta ficha.';
+    }
+
+    const form = document.getElementById('form');
+    const error = document.getElementById('error');
+    const boton = document.getElementById('enviar');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      error.hidden = true;
+      boton.disabled = true;
+      boton.textContent = 'Verificando…';
+
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usuario: document.getElementById('usuario').value,
+            password: document.getElementById('password').value,
+          }),
+        });
+        const datos = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          // Solo rutas internas: evita que ?next= mande a otro sitio.
+          location.replace(next.startsWith('/') && !next.startsWith('//') ? next : '/');
+          return;
+        }
+        error.textContent = datos.error || 'No se pudo iniciar sesión.';
+        error.hidden = false;
+      } catch {
+        error.textContent = 'Sin conexión con el servidor.';
+        error.hidden = false;
+      }
+
+      boton.disabled = false;
+      boton.textContent = 'Entrar';
+      document.getElementById('password').select();
+    });
+  </script>
+</body>
+</html>

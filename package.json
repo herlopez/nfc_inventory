@@ -1,0 +1,21 @@
+{
+  "name": "nfc_inventory",
+  "version": "1.0.0",
+  "description": "Inventario por NFC/QR con acceso por contraseña",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js",
+    "usuario": "node seed.js",
+    "check:env": "node scripts/validate-env.js",
+    "check:env:db": "node scripts/validate-env.js --db"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "express": "^5.1.0",
+    "pg": "^8.23.0"
+  }
+}
