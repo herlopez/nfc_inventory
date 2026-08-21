@@ -15,10 +15,10 @@ const raiz = path.dirname(fileURLToPath(import.meta.url));
 const COSTO_BCRYPT = 12;
 
 const USUARIO_INICIAL = {
-  nombre: 'hernan',
-  usuario: 'hlopez',
-  email: 'herlopezm@gmail.com',
-  password: '123123123',
+  nombre: process.env.INITIAL_ADMIN_NAME,
+  usuario: process.env.INITIAL_ADMIN_USER,
+  email: process.env.INITIAL_ADMIN_EMAIL,
+  password: process.env.INITIAL_ADMIN_PASSWORD,
 };
 
 function args() {
@@ -101,6 +101,13 @@ async function main() {
 
   const { count } = await uno('SELECT COUNT(*)::int AS count FROM usuarios');
   if (count === 0) {
+    if (!USUARIO_INICIAL.nombre || !USUARIO_INICIAL.usuario ||
+        !USUARIO_INICIAL.email || !USUARIO_INICIAL.password) {
+      throw new Error(
+        'No hay usuarios. Define INITIAL_ADMIN_NAME, INITIAL_ADMIN_USER, ' +
+        'INITIAL_ADMIN_EMAIL e INITIAL_ADMIN_PASSWORD en .env, o crea uno con npm run usuario -- ...'
+      );
+    }
     await guardarUsuario(USUARIO_INICIAL);
     console.log(`Usuario inicial creado: ${USUARIO_INICIAL.usuario} / ${USUARIO_INICIAL.email}`);
     console.log('   Cámbiale la contraseña con:');

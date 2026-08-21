@@ -14,6 +14,7 @@ Node + Express + PostgreSQL (driver `pg`).
 ```bash
 npm install
 cp .env.example .env      # y pon ahí tu DATABASE_URL
+npm run check:env         # valida que no uses root/hans/postgres en la cadena
 npm run seed              # crea las tablas, el usuario inicial y los productos de ejemplo
 npm start                 # http://localhost:3000
 ```
@@ -21,11 +22,15 @@ npm start                 # http://localhost:3000
 Si la base todavía no existe, créala una vez: `createdb nfc` (o `CREATE DATABASE nfc;` desde psql).
 Las tablas las crea la app sola en cada arranque, con `CREATE TABLE IF NOT EXISTS`.
 
-Usuario inicial (queda en la tabla `usuarios`, con la contraseña cifrada con bcrypt):
+Usuario inicial: si la tabla `usuarios` está vacía, `npm run seed` lo crea desde estas variables
+del `.env` y guarda la contraseña cifrada con bcrypt:
 
-| nombre | usuario | email | contraseña |
-| --- | --- | --- | --- |
-| hernan | `hlopez` | `herlopezm@gmail.com` | `123123123` |
+```env
+INITIAL_ADMIN_NAME="Admin"
+INITIAL_ADMIN_USER=admin
+INITIAL_ADMIN_EMAIL=admin@example.com
+INITIAL_ADMIN_PASSWORD="una-clave-larga"
+```
 
 ## Usuarios
 
@@ -44,6 +49,8 @@ npm run usuario -- --nombre "Ana Ruiz" --usuario aruiz --email ana@empresa.com -
 | [server.js](server.js) | Express: login, sesiones, API y archivos estáticos. |
 | [db.js](db.js) | Pool de Postgres y esquema (`usuarios`, `sesiones`, `productos`, `imagenes`). |
 | [seed.js](seed.js) | Carga inicial y alta/cambio de contraseña de usuarios. |
+| [scripts/validate-env.js](scripts/validate-env.js) | Revisa que `.env` tenga `DATABASE_URL` válida y que no use un rol privilegiado. |
+| [scripts/db-create-admin.sql](scripts/db-create-admin.sql) | SQL para crear/ajustar el rol dedicado de la app en Postgres. |
 | [public/login.html](public/login.html) | Formulario de acceso. |
 | [public/index.html](public/index.html) | Ficha del producto; sin `id` muestra el listado. |
 | [public/admin.html](public/admin.html) | Alta, edición y borrado de productos. |
@@ -133,7 +140,41 @@ Como la base es Postgres, no hay problema de disco efímero. Si el servidor exig
 ## Configuración
 
 Ver [.env.example](.env.example): `PORT`, `SESSION_DIAS`, `COOKIE_SECURE`, `TRUST_PROXY`,
-`MONEDA`, `DATABASE_URL`, `PGSSL`, `PG_POOL_MAX`.
+`MONEDA`, `DATABASE_URL`, `PGSSL`, `PG_POOL_MAX` y las variables `INITIAL_ADMIN_*`.
+
+Para validar sin revelar secretos:
+
+```bash
+npm run check:env
+```
+
+Si la red donde corre el comando tiene acceso a Postgres, también valida permisos reales del rol:
+
+```bash
+npm run check:env:db
+```
+
+El usuario de la app en `DATABASE_URL` debe ser dedicado, por ejemplo `nfc_admin`, no `hans`,
+`postgres` ni `root`.
+
+## Rol de base de datos
+
+Ejecuta esto una vez con un usuario administrador de Postgres para crear o ajustar el rol de la app:
+
+```bash
+psql "postgresql://USUARIO_ADMIN@HOST:5432/postgres" \
+  -v db_name=nfc \
+  -v app_user=nfc_admin \
+  -v app_password='CLAVE_LARGA_NUEVA' \
+  -f scripts/db-create-admin.sql
+```
+
+Después deja el `.env` así, usando esa clave nueva:
+
+```env
+PGUSER=nfc_admin
+DATABASE_URL="postgresql://nfc_admin:CLAVE_LARGA_NUEVA@HOST:5432/nfc"
+```
 
 ## Respaldo
 

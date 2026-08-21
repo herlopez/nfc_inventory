@@ -9,7 +9,9 @@
   "scripts": {
     "start": "node server.js",
     "seed": "node seed.js",
-    "usuario": "node seed.js"
+    "usuario": "node seed.js",
+    "check:env": "node scripts/validate-env.js",
+    "check:env:db": "node scripts/validate-env.js --db"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
