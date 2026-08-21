@@ -1,0 +1,68 @@
+schema: spec-driven
+
+context: |
+  Language: Spanish
+  All artifacts must be written in Spanish.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  ## Qué es este proyecto
+  Inventario de herramientas y equipos consultable por tags NFC y códigos QR.
+  Cada tag guarda una URL con el ID del producto (`/?id=P-001` o el corto `/p/P-001`);
+  el servidor exige sesión y luego muestra la ficha. Uso interno, pocos usuarios.
+
+  ## Stack
+  - Node.js >= 22.5, ESM puro (`"type": "module"`). Sin TypeScript, sin paso de build.
+  - Express 5 (`server.js`), PostgreSQL 16 con el driver `pg` (`db.js`), bcryptjs.
+  - Front-end en HTML y JavaScript de navegador sin framework ni bundler
+    (`public/*.html`, `public/assets/app.js`). Se sirve estático desde Express.
+  - Config por `.env`, leída con `process.loadEnvFile` (nativo de Node, no dotenv).
+  - NO hay framework de tests instalado. No propongas tareas que asuman `npm test`
+    sin incluir antes la tarea de elegir e instalar el runner.
+
+  ## Convenciones de código
+  - Identificadores, comentarios y textos de interfaz en español, incluidos los
+    nombres de tablas y columnas (`usuarios`, `productos`, `actualizado`, `ubicacion`).
+  - Los comentarios explican el porqué de una decisión, no lo que hace la línea.
+  - El esquema de base vive en la constante `ESQUEMA` de `db.js` y se aplica con
+    `CREATE TABLE IF NOT EXISTS` en cada arranque: los cambios de esquema deben ser
+    idempotentes y compatibles con bases ya existentes.
+  - Toda consulta va parametrizada (`$1..$n`). No se concatena SQL en ningún caso.
+
+  ## Invariantes que no se rompen
+  - El `id` de un producto es inmutable una vez creado: ya está impreso en tags NFC
+    y códigos QR que no se pueden regrabar. Los IDs se comparan sin distinguir
+    mayúsculas.
+  - Todo lo que no sea `/login` y `/assets` exige sesión: las páginas redirigen al
+    login y la API responde 401.
+  - En la tabla `sesiones` se guarda solo el SHA-256 del token, nunca el token.
+    Las contraseñas van con bcrypt de coste 12.
+  - Roles: `admin` lee y escribe; `lector` solo lee y recibe 403 en toda escritura.
+  - Las fotos se guardan como `bytea` en la tabla `imagenes`, una por producto, y se
+    sirven solo con sesión. El respaldo del sistema es un único `pg_dump`.
+
+  ## Despliegue
+  Hace falta un host que ejecute Node. En producción `COOKIE_SECURE=1` y, solo si de
+  verdad hay un proxy delante, `TRUST_PROXY=1` (si no, se puede falsear la IP y
+  saltarse el freno de intentos de login).
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
