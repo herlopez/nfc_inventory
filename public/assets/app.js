@@ -39,8 +39,10 @@ function precio(valor, moneda) {
 }
 
 function vistaProducto(p, config) {
-  const img = p.imagen
-    ? `<img class="hero" src="${esc(p.imagen)}" alt="${esc(p.nombre)}" onerror="this.remove()">`
+  // La foto subida manda sobre la URL externa.
+  const src = p.foto || p.imagen;
+  const img = src
+    ? `<img class="hero" src="${esc(src)}" alt="${esc(p.nombre)}" onerror="this.remove()">`
     : `<div class="hero-fallback">${esc(String(p.id).slice(0, 3).toUpperCase())}</div>`;
 
   const celdas = [

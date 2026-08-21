@@ -64,10 +64,13 @@
         });
         if (res.status === 401) { location.replace('/login?next=/generar.html'); return; }
         const data = await res.json();
+        const esc = v => String(v ?? '').replace(/[&<>"']/g, c =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
         const sel = $('prod');
         sel.innerHTML = '<option value="">— elegir —</option>' +
           (data.productos || []).map(p =>
-            `<option value="${p.id}">${p.nombre} (${p.id})</option>`).join('');
+            `<option value="${esc(p.id)}">${esc(p.nombre)} (${esc(p.id)})</option>`).join('');
       } catch {
         estado('No se pudo leer el inventario; usa el campo manual.');
       }

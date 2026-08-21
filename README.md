@@ -7,15 +7,19 @@ Cada tag guarda un link con un ID; el servidor pide sesión y luego muestra la f
 https://tusitio.com/?id=P-001   →   login  →   ficha del producto P-001
 ```
 
-Node + Express + SQLite (`node:sqlite`, incluido en Node ≥ 22.5: no hay que compilar nada).
+Node + Express + PostgreSQL (driver `pg`).
 
 ## Arrancar
 
 ```bash
 npm install
-npm run seed     # crea el usuario inicial y carga los productos de ejemplo
-npm start        # http://localhost:3000
+cp .env.example .env      # y pon ahí tu DATABASE_URL
+npm run seed              # crea las tablas, el usuario inicial y los productos de ejemplo
+npm start                 # http://localhost:3000
 ```
+
+Si la base todavía no existe, créala una vez: `createdb nfc` (o `CREATE DATABASE nfc;` desde psql).
+Las tablas las crea la app sola en cada arranque, con `CREATE TABLE IF NOT EXISTS`.
 
 Usuario inicial (queda en la tabla `usuarios`, con la contraseña cifrada con bcrypt):
 
@@ -38,7 +42,7 @@ npm run usuario -- --nombre "Ana Ruiz" --usuario aruiz --email ana@empresa.com -
 | Archivo | Qué hace |
 | --- | --- |
 | [server.js](server.js) | Express: login, sesiones, API y archivos estáticos. |
-| [db.js](db.js) | Esquema SQLite (`usuarios`, `sesiones`, `productos`). |
+| [db.js](db.js) | Pool de Postgres y esquema (`usuarios`, `sesiones`, `productos`, `imagenes`). |
 | [seed.js](seed.js) | Carga inicial y alta/cambio de contraseña de usuarios. |
 | [public/login.html](public/login.html) | Formulario de acceso. |
 | [public/index.html](public/index.html) | Ficha del producto; sin `id` muestra el listado. |
@@ -46,15 +50,17 @@ npm run usuario -- --nombre "Ana Ruiz" --usuario aruiz --email ana@empresa.com -
 | [public/generar.html](public/generar.html) | Genera el link, el QR descargable y graba el tag NFC. |
 | [public/assets/app.js](public/assets/app.js) | Lee el ID del link y pinta la ficha desde la API. |
 | [data/productos.json](data/productos.json) | Solo semilla inicial; el dato vivo está en la base. |
-| `inventario.db` | La base. No se sube a git. |
+| [.env.example](.env.example) | Plantilla de configuración. El `.env` real no se sube a git. |
 
 ## Cómo funciona el acceso
 
 - La contraseña se guarda con **bcrypt** (coste 12), nunca en claro.
 - Al entrar se crea una sesión de 30 días; la cookie es `httpOnly` + `SameSite=Lax` y en la base se guarda solo el **hash** del token, así que ni con la base en la mano se pueden reusar sesiones.
-- Tras 8 intentos fallidos en 15 minutos, ese usuario/IP recibe `429` durante un rato.
+- Tras 8 intentos fallidos contra un usuario (o 30 desde una misma IP) en 15 minutos, se responde `429`.
 - Todo lo que no sea `/login` y `/assets` exige sesión: sin cookie, las páginas redirigen al login y la API responde `401`.
 - Si abres el link de un tag sin sesión, tras entrar vuelves solo a la ficha que escaneaste (`/login?next=…`).
+- Todas las respuestas llevan CSP, `nosniff`, `X-Frame-Options: DENY` y `Referrer-Policy`.
+- Todas las consultas van parametrizadas (`$1..$n`): no se concatena SQL en ningún sitio.
 
 ## API
 
@@ -68,6 +74,9 @@ npm run usuario -- --nombre "Ana Ruiz" --usuario aruiz --email ana@empresa.com -
 | `POST /api/productos` | Alta. `409` si el ID ya existe. Solo rol `admin`. |
 | `PUT /api/productos/:id` | Edición (reemplaza todos los campos). Solo rol `admin`. |
 | `DELETE /api/productos/:id` | Baja. Solo rol `admin`. |
+| `GET /api/productos/:id/imagen` | La foto, con `ETag` y caché privada. |
+| `POST /api/productos/:id/imagen` | Sube la foto: cuerpo binario + `Content-Type`. Solo rol `admin`. |
+| `DELETE /api/productos/:id/imagen` | Quita la foto. Solo rol `admin`. |
 | `GET /p/:id` | Link corto para tags → redirige a `/?id=…`. |
 
 ## Agregar y editar productos
@@ -81,6 +90,15 @@ alta, edición, borrado, campos extra dinámicos y sugerencias de categoría/ubi
   `precio`, `estado`, `notas` y los `extra` que quieras. Los vacíos no se muestran en la ficha.
 - Estados con color: `disponible` (verde) · `prestado`, `reservado`, `mantenimiento` (ámbar) ·
   `agotado`, `dañado`, `perdido` (rojo).
+
+### Foto
+
+Botón **Tomar / elegir foto**: desde el móvil abre la cámara. La imagen se reduce a 1600 px y se
+convierte a JPEG **en el navegador** antes de subirla (respetando la orientación EXIF), así que una
+foto de 4 MB acaba pesando ~200 KB. Se guarda en la tabla `imagenes` como `bytea`, y se sirve por
+`/api/productos/:id/imagen` solo con sesión iniciada. Admite JPEG, PNG y WebP hasta 5 MB; el
+servidor comprueba los bytes de cabecera, no solo el `Content-Type`. Si prefieres enlazar una foto
+que ya está en internet, usa el campo *…o una imagen por URL*; la foto subida tiene prioridad.
 
 ### Roles
 
@@ -106,9 +124,20 @@ Ya no sirve GitHub Pages: hace falta un host que ejecute Node (Render, Railway, 
 Sube el repo, configura el arranque como `npm install && npm run seed && npm start` y en el `.env`
 del servidor pon `COOKIE_SECURE=1` y `TRUST_PROXY=1`.
 
-Ojo con SQLite en hosts de disco efímero (Render free): monta un disco persistente y apunta
-`DB_PATH` ahí, o la base se borra en cada despliegue.
+`TRUST_PROXY=1` hace que la IP del cliente se lea de `X-Forwarded-For`. Actívalo **solo** si de
+verdad hay un proxy delante; si no, cualquiera puede falsear su IP y saltarse el freno de intentos.
+
+Como la base es Postgres, no hay problema de disco efímero. Si el servidor exige TLS
+(Neon, Supabase, RDS), pon `PGSSL=1`.
 
 ## Configuración
 
-Ver [.env.example](.env.example): `PORT`, `SESSION_DIAS`, `COOKIE_SECURE`, `TRUST_PROXY`, `DB_PATH`, `MONEDA`.
+Ver [.env.example](.env.example): `PORT`, `SESSION_DIAS`, `COOKIE_SECURE`, `TRUST_PROXY`,
+`MONEDA`, `DATABASE_URL`, `PGSSL`, `PG_POOL_MAX`.
+
+## Respaldo
+
+```bash
+pg_dump "$DATABASE_URL" -Fc -f respaldo-nfc.dump    # incluye las fotos
+pg_restore -d "$DATABASE_URL" respaldo-nfc.dump
+```

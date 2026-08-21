@@ -84,7 +84,21 @@
           </div>
 
           <div class="field">
-            <label for="imagen">Imagen (URL)</label>
+            <label>Foto</label>
+            <div class="foto-zona">
+              <div class="foto-prev" id="foto-prev"><span>Sin foto</span></div>
+              <div class="foto-botones">
+                <label class="btn" for="foto-archivo">Tomar / elegir foto</label>
+                <input id="foto-archivo" type="file" accept="image/jpeg,image/png,image/webp"
+                       capture="environment" hidden>
+                <button type="button" class="btn danger" id="foto-quitar" hidden>Quitar</button>
+                <span class="hint" id="foto-estado">JPEG, PNG o WebP. Se reduce antes de subir.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="imagen">…o una imagen por URL</label>
             <input id="imagen" name="imagen" type="url" placeholder="https://…/foto.jpg" maxlength="500">
           </div>
 
@@ -154,6 +168,100 @@
       return datos;
     }
 
+    /* ---------- foto ---------- */
+
+    // En un producto nuevo todavía no hay ID donde colgar la foto:
+    // se guarda aquí y se sube justo después de crearlo.
+    let fotoPendiente = null;
+
+    /** Reduce la foto en el teléfono: subir 4 MB de cámara no aporta nada. */
+    async function comprimir(archivo, lado = 1600, calidad = 0.82) {
+      try {
+        // imageOrientation respeta el EXIF: si no, las fotos verticales salen giradas.
+        const bmp = await createImageBitmap(archivo, { imageOrientation: 'from-image' });
+        const escala = Math.min(1, lado / Math.max(bmp.width, bmp.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(bmp.width * escala);
+        canvas.height = Math.round(bmp.height * escala);
+        canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        bmp.close?.();
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', calidad));
+        return blob || archivo;
+      } catch {
+        return archivo; // navegador viejo: se sube tal cual
+      }
+    }
+
+    function mostrarFoto(url) {
+      const prev = $('foto-prev');
+      if (url) {
+        prev.innerHTML = `<img src="${esc(url)}" alt="Foto del producto">`;
+        $('foto-quitar').hidden = false;
+      } else {
+        prev.innerHTML = '<span>Sin foto</span>';
+        $('foto-quitar').hidden = true;
+      }
+    }
+
+    async function subirFoto(id, blob) {
+      const res = await fetch(`/api/productos/${encodeURIComponent(id)}/imagen`, {
+        method: 'POST',
+        headers: { 'Content-Type': blob.type || 'image/jpeg' },
+        body: blob,
+      });
+      if (res.status === 401) {
+        location.replace('/login?next=' + encodeURIComponent(location.pathname + location.search));
+        throw new Error('sesión');
+      }
+      const datos = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(datos.error || `Error ${res.status}`);
+      return datos;
+    }
+
+    $('foto-archivo').addEventListener('change', async (e) => {
+      const archivo = e.target.files?.[0];
+      if (!archivo) return;
+
+      $('foto-estado').textContent = 'Preparando…';
+      const blob = await comprimir(archivo);
+
+      if (blob.size > 5 * 1024 * 1024) {
+        $('foto-estado').textContent = 'La foto pesa más de 5 MB incluso reducida.';
+        e.target.value = '';
+        return;
+      }
+
+      const kb = Math.round(blob.size / 1024);
+
+      if (editandoId) {
+        try {
+          const { foto } = await subirFoto(editandoId, blob);
+          mostrarFoto(foto);
+          $('foto-estado').textContent = `Foto guardada (${kb} KB).`;
+        } catch (err) {
+          if (err.message !== 'sesión') $('foto-estado').textContent = err.message;
+        }
+      } else {
+        fotoPendiente = blob;
+        mostrarFoto(URL.createObjectURL(blob));
+        $('foto-estado').textContent = `Lista (${kb} KB); se sube al guardar el producto.`;
+      }
+      e.target.value = '';
+    });
+
+    $('foto-quitar').addEventListener('click', async () => {
+      if (editandoId) {
+        try {
+          await api('/api/productos/' + encodeURIComponent(editandoId) + '/imagen', { method: 'DELETE' });
+        } catch (err) {
+          if (err.message !== 'sesión') { $('foto-estado').textContent = err.message; return; }
+        }
+      }
+      fotoPendiente = null;
+      mostrarFoto(null);
+      $('foto-estado').textContent = 'Foto quitada.';
+    });
+
     /* ---------- campos extra ---------- */
 
     function filaExtra(clave = '', valor = '') {
@@ -196,6 +304,7 @@
       $('id').readOnly = true;
       $('id').style.opacity = .6;
       llenarFormulario(p);
+      mostrarFoto(p.foto);
 
       $('ver').href = '/?id=' + encodeURIComponent(p.id);
       $('qr').href = '/generar.html';
@@ -207,6 +316,7 @@
       $('id').readOnly = false;
       $('id').style.opacity = 1;
       $('extras').innerHTML = '';
+      mostrarFoto(null);
       for (const b of ['ver', 'qr', 'borrar', 'nuevo']) $(b).hidden = true;
     }
 
@@ -240,6 +350,10 @@
         } else {
           const { producto } = await api('/api/productos',
             { method: 'POST', body: JSON.stringify(cuerpo) });
+          if (fotoPendiente) {
+            boton.textContent = 'Subiendo foto…';
+            await subirFoto(producto.id, fotoPendiente);
+          }
           location.href = '/admin.html?id=' + encodeURIComponent(producto.id) + '&creado=1';
           return;
         }
