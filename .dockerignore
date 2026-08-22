@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+npm-debug.log*
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+respaldo-*.dump
